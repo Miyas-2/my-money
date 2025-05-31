@@ -1,0 +1,82 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// prisma/schema.prisma
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  transactions Transaction[]
+  categories Category[]
+  budgets   Budget[]
+}
+
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      CategoryType
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  transactions Transaction[]
+  budgets   Budget[]
+
+  @@unique([userId, name]) // nama kategori unik per user
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  categoryId  Int
+  category    Category @relation(fields: [categoryId], references: [id])
+  amount      Decimal  @db.Decimal(10, 2) // Contoh: 10 digit total, 2 di belakang koma
+  type        TransactionType // Enum akan didefinisikan di bawah
+  description String?
+  date        DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Budget {
+  id Int @id @default(autoincrement())
+  userId Int
+  user User @relation(fields: [userId], references: [id])
+  categoryId Int
+  category Category @relation(fields: [categoryId], references: [id])
+  amount Decimal @db.Decimal(10, 2)
+  month Int
+  year Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, categoryId, month, year]) // Anggaran unik per pengguna, kategori, bulan, tahun
+}
+
+enum CategoryType {
+  Pemasukan
+  Pengeluaran
+}
+
+enum TransactionType {
+  Pemasukan
+  Pengeluaran
+}

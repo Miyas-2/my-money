@@ -1,0 +1,173 @@
+@baseUrl = http://localhost:3000/api
+@contentType = application/json
+@userIdPlaceholder = 1
+
+
+
+### ==================================
+### CATEGORIES API
+### ==================================
+
+# @name createCategory
+POST {{baseUrl}}/categories HTTP/1.1
+Content-Type: {{contentType}}
+
+{
+  "name": "Gaji Bulanan",
+  "type": "Pengeluaran",
+  "userId": {{userIdPlaceholder}} 
+}
+
+###
+
+# @name getAllCategoriesForUser
+GET {{baseUrl}}/categories HTTP/1.1
+# Anda bisa menambahkan query params jika API Anda mendukungnya
+# Contoh: GET {{baseUrl}}/categories?userId={{userIdPlaceholder}} (jika userId dari query, bukan sesi)
+
+###
+# Simpan ID kategori dari response createCategory untuk tes selanjutnya
+# (Ekstensi REST Client biasanya punya cara untuk ini, atau Anda catat manual untuk tes awal)
+@createdCategoryId = 3
+
+# @name getCategoryById
+GET {{baseUrl}}/categories/{{createdCategoryId}} HTTP/1.1
+
+###
+
+# @name updateCategory
+PUT {{baseUrl}}/categories/{{createdCategoryId}} HTTP/1.1
+Content-Type: {{contentType}}
+
+{
+  "name": "Party Utama Bulanan",
+  "type": "Pengeluaran"
+}
+
+###
+# (Hati-hati saat menjalankan DELETE)
+# @name deleteCategory
+DELETE {{baseUrl}}/categories/{{createdCategoryId}} HTTP/1.1
+
+
+### ==================================
+### TRANSACTIONS API
+### ==================================
+# Asumsikan Anda sudah punya categoryId, misal dari tes kategori di atas
+@testCategoryIdForTransaction = 2
+
+# @name createTransaction
+POST {{baseUrl}}/transactions HTTP/1.1
+Content-Type: {{contentType}}
+
+{
+  "categoryId": {{testCategoryIdForTransaction}},
+  "amount": 5000000,
+  "type": "Pemasukan",
+  "description": "Gaji Mei 2025",
+  "date": "2025-05-30T10:00:00.000Z" 
+}
+
+###
+
+# @name createExpenseTransaction
+POST {{baseUrl}}/transactions HTTP/1.1
+Content-Type: {{contentType}}
+
+{
+  "categoryId": 3, 
+  "amount": 75000,
+  "type": "Pengeluaran",
+  "description": "Makan Siang Kantor",
+  "date": "2025-05-31T12:30:00.000Z"
+}
+
+
+###
+
+# @name getAllTransactionsForUser
+GET {{baseUrl}}/transactions HTTP/1.1
+# Contoh dengan pagination (jika Anda implementasikan):
+# GET {{baseUrl}}/transactions?page=1&limit=5
+
+###
+@createdTransactionId = 2
+
+# @name getTransactionById
+GET {{baseUrl}}/transactions/{{createdTransactionId}} HTTP/1.1
+
+###
+
+# @name updateTransaction
+PUT {{baseUrl}}/transactions/{{createdTransactionId}} HTTP/1.1
+Content-Type: {{contentType}}
+
+{
+  "amount": 78000,
+  "description": "Makan Siang Kantor (update)"
+}
+
+###
+# (Hati-hati saat menjalankan DELETE)
+# @name deleteTransaction
+DELETE {{baseUrl}}/transactions/{{createdTransactionId}} HTTP/1.1
+
+
+### ==================================
+### BUDGETS API
+### ==================================
+# Asumsikan Anda punya categoryId untuk pengeluaran
+@expenseCategoryIdForBudget = 3
+
+# @name createBudget
+POST {{baseUrl}}/budgets HTTP/1.1
+Content-Type: {{contentType}}
+
+{
+  "categoryId": {{expenseCategoryIdForBudget}},
+  "amount": 1500000,
+  "month": 5, 
+  "year": 2025
+}
+
+###
+
+# @name getAllBudgetsForUser
+GET {{baseUrl}}/budgets HTTP/1.1
+# Contoh filter berdasarkan bulan dan tahun (jika diimplementasikan):
+# GET {{baseUrl}}/budgets?month=5&year=2025
+
+###
+@createdBudgetId = 1
+
+# @name getBudgetById
+GET {{baseUrl}}/budgets/{{createdBudgetId}} HTTP/1.1
+
+###
+
+# @name updateBudget
+PUT {{baseUrl}}/budgets/{{createdBudgetId}} HTTP/1.1
+Content-Type: {{contentType}}
+
+{
+  "amount": 1600000
+}
+
+###
+# (Hati-hati saat menjalankan DELETE)
+# @name deleteBudget
+# DELETE {{baseUrl}}/budgets/{{createdBudgetId}} HTTP/1.1
+
+
+### ==================================
+### USERS API (Contoh GET)
+### ==================================
+
+# @name getAllUsers
+GET {{baseUrl}}/users HTTP/1.1
+
+###
+@testUserId = 1 # Atau ID user lain yang ada di database Anda
+
+# @name getUserById
+GET {{baseUrl}}/users/{{testUserId}} HTTP/1.1
