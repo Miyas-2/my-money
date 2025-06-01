@@ -18,8 +18,9 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".", // Penting: baseUrl adalah root proyek
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["src/*"] // Penting: @/* akan menunjuk ke dalam direktori src/
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

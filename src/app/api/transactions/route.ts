@@ -1,8 +1,9 @@
 // src/app/api/transactions/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '../../lib/prisma';
+// import prisma from '@/lib/prisma';
 import { z } from 'zod';
-import { TransactionType } from '@prisma/client';
+import { Prisma, TransactionType } from '@prisma/client';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
@@ -17,52 +18,114 @@ const createTransactionSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const sessionUserId = 1; // GANTI DENGAN LOGIC AUTENTIKASI
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {
     return NextResponse.json({ message: "Tidak terautentikasi" }, { status: 401 });
   }
-  // User ID dari sesi adalah string, sedangkan di Prisma mungkin integer.
-  // Pastikan tipe datanya sesuai dengan skema Prisma Anda untuk userId.
-  const userId = parseInt(session.user.id); // Asumsikan userId di Prisma adalah Integer
+  const userId = parseInt(session.user.id);
 
   if (isNaN(userId)) {
-    // Handle kasus jika session.user.id tidak bisa di-parse ke integer
     return NextResponse.json({ message: "ID pengguna tidak valid dalam sesi" }, { status: 400 });
   }
 
-  try {
-    // Tambahkan opsi filter & pagination jika perlu
-    // const { searchParams } = new URL(request.url);
-    // const page = parseInt(searchParams.get('page') || '1');
-    // const limit = parseInt(searchParams.get('limit') || '10');
-    // const categoryId = searchParams.get('categoryId');
+  const { searchParams } = new URL(request.url);
+  const searchTerm = searchParams.get('search');
+  const categoryIdParam = searchParams.get('categoryId');
+  const typeParam = searchParams.get('type') as TransactionType | null;
+  const startDateParam = searchParams.get('startDate');
+  const endDateParam = searchParams.get('endDate');
+  const monthParam = searchParams.get('month');
+  const yearParam = searchParams.get('year');
 
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const skip = (page - 1) * limit;
+
+  const whereClause: Prisma.TransactionWhereInput = {
+    userId: userId,
+  };
+
+  if (searchTerm) {
+    whereClause.description = {
+      contains: searchTerm,
+      // mode: 'insensitive', // <-- HAPUS BARIS INI
+    };
+  }
+
+  if (categoryIdParam) {
+    const parsedCategoryId = parseInt(categoryIdParam);
+    if (!isNaN(parsedCategoryId)) {
+      whereClause.categoryId = parsedCategoryId;
+    }
+  }
+
+  if (typeParam && Object.values(TransactionType).includes(typeParam)) {
+    whereClause.type = typeParam;
+  }
+
+  const dateFilter: Prisma.DateTimeFilter = {};
+  if (startDateParam) {
+    const date = new Date(startDateParam);
+    if (!isNaN(date.valueOf())) {
+        date.setHours(0, 0, 0, 0);
+        dateFilter.gte = date;
+    }
+  }
+  if (endDateParam) {
+    const date = new Date(endDateParam);
+    if (!isNaN(date.valueOf())) {
+        date.setHours(23, 59, 59, 999);
+        dateFilter.lte = date;
+    }
+  }
+  if (Object.keys(dateFilter).length > 0) {
+    whereClause.date = dateFilter;
+  }
+
+  if (monthParam && yearParam && !startDateParam && !endDateParam) {
+    const month = parseInt(monthParam);
+    const year = parseInt(yearParam);
+    if (!isNaN(month) && !isNaN(year) && month >= 1 && month <= 12) {
+      const firstDayOfMonth = new Date(year, month - 1, 1);
+      const lastDayOfMonth = new Date(year, month, 0);
+      lastDayOfMonth.setHours(23, 59, 59, 999);
+
+      whereClause.date = {
+        gte: firstDayOfMonth,
+        lte: lastDayOfMonth,
+      };
+    }
+  }
+
+  try {
     const transactions = await prisma.transaction.findMany({
-      where: {
-        userId: userId,
-        // ...(categoryId && { categoryId: parseInt(categoryId) })
-      },
+      where: whereClause,
       include: {
-        category: { // Sertakan detail kategori
+        category: {
           select: { name: true, type: true }
         }
       },
       orderBy: {
         date: 'desc',
       },
-      // skip: (page - 1) * limit,
+      // skip: skip,
       // take: limit,
     });
-    // const totalTransactions = await prisma.transaction.count({ where: { userId: sessionUserId }});
-    return NextResponse.json({ transactions });
+
+    const plainTransactions = transactions.map(tx => ({
+      ...tx,
+      amount: tx.amount.toNumber(),
+    }));
+
+    return NextResponse.json({
+      transactions: plainTransactions,
+    });
   } catch (error) {
     console.error("Error fetching transactions:", error);
     return NextResponse.json({ message: 'Gagal mengambil data transaksi', error: (error as Error).message }, { status: 500 });
   }
 }
-
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
 

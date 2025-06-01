@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '../../../lib/prisma'; // Pastikan path ini benar
 import { z } from 'zod';
 import { CategoryType } from '@prisma/client';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 const updateCategorySchema = z.object({
   name: z.string().min(1, "Nama kategori tidak boleh kosong").max(100).optional(),
@@ -16,11 +18,20 @@ interface RouteContext {
 }
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  // --- simulasi mendapatkan userId dari sesi autentikasi ---
-  const sessionUserId = 1; // GANTI INI DENGAN LOGIC AUTENTIKASI SEBENARNYA
-  // ----------------------------------------------------
-  const categoryId = parseInt(params.id, 10);
+  // 1. Dapatkan sesi pengguna
+  const session = await getServerSession(authOptions);
 
+  // 2. Validasi sesi dan ID pengguna
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ message: "Tidak terautentikasi" }, { status: 401 });
+  }
+  const userId = parseInt(session.user.id); // Asumsikan userId di Prisma adalah Integer
+
+  if (isNaN(userId)) {
+    return NextResponse.json({ message: "ID pengguna tidak valid dalam sesi" }, { status: 400 });
+  }
+
+  const categoryId = parseInt(params.id, 10);
   if (isNaN(categoryId)) {
     return NextResponse.json({ message: 'ID kategori tidak valid' }, { status: 400 });
   }
@@ -29,12 +40,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     const category = await prisma.category.findUnique({
       where: {
         id: categoryId,
-        userId: sessionUserId, // Pastikan user hanya bisa akses kategori miliknya
+        userId: userId, // 3. Pastikan kategori milik user yang sedang login
       },
     });
 
     if (!category) {
-      return NextResponse.json({ message: 'Kategori tidak ditemukan' }, { status: 404 });
+      return NextResponse.json({ message: 'Kategori tidak ditemukan atau bukan milik Anda' }, { status: 404 });
     }
     return NextResponse.json(category);
   } catch (error) {
@@ -44,11 +55,20 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  // --- simulasi mendapatkan userId dari sesi autentikasi ---
-  const sessionUserId = 1; // GANTI INI DENGAN LOGIC AUTENTIKASI SEBENARNYA
-  // ----------------------------------------------------
-  const categoryId = parseInt(params.id, 10);
+  // 1. Dapatkan sesi pengguna
+  const session = await getServerSession(authOptions);
 
+  // 2. Validasi sesi dan ID pengguna
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ message: "Tidak terautentikasi" }, { status: 401 });
+  }
+  const userId = parseInt(session.user.id); // Asumsikan userId di Prisma adalah Integer
+
+  if (isNaN(userId)) {
+    return NextResponse.json({ message: "ID pengguna tidak valid dalam sesi" }, { status: 400 });
+  }
+
+  const categoryId = parseInt(params.id, 10);
   if (isNaN(categoryId)) {
     return NextResponse.json({ message: 'ID kategori tidak valid' }, { status: 400 });
   }
@@ -63,44 +83,42 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
     const { name, type } = validation.data;
 
-    // Cek apakah kategori milik user
+    // 3. Cek apakah kategori milik user menggunakan userId dari sesi
     const existingCategory = await prisma.category.findFirst({
-        where: { id: categoryId, userId: sessionUserId }
+        where: { id: categoryId, userId: userId }
     });
 
     if (!existingCategory) {
         return NextResponse.json({ message: 'Kategori tidak ditemukan atau Anda tidak berhak mengubahnya.' }, { status: 404 });
     }
 
-    // Jika nama diubah, cek duplikasi nama untuk user yang sama (kecuali untuk kategori yang sedang diupdate)
     if (name && name !== existingCategory.name) {
         const duplicateNameCategory = await prisma.category.findUnique({
             where: {
                 userId_name: {
-                    userId: sessionUserId,
+                    userId: userId, // Gunakan userId dari sesi
                     name: name,
                 }
             }
         });
         if (duplicateNameCategory) {
-            return NextResponse.json({ message: `Kategori dengan nama "${name}" sudah ada.` }, { status: 409 });
+            return NextResponse.json({ message: `Kategori dengan nama "${name}" sudah ada untuk pengguna ini.` }, { status: 409 });
         }
     }
 
     const updatedCategory = await prisma.category.update({
       where: {
-        id: categoryId,
-        // userId: sessionUserId, // Sebenarnya sudah dicek di atas, tapi bisa ditambahkan untuk keamanan ganda
+        id: categoryId, // Kepemilikan sudah dicek dengan existingCategory
       },
       data: {
-        ...(name && { name }), // Hanya update jika ada di payload
+        ...(name && { name }),
         ...(type && { type }),
       },
     });
     return NextResponse.json(updatedCategory);
   } catch (error) {
     console.error("Error updating category:", error);
-    if ((error as any).code === 'P2002') {
+    if ((error as any).code === 'P2002') { // Unique constraint violation
         return NextResponse.json({ message: `Kategori dengan nama tersebut sudah ada.` }, { status: 409 });
     }
     if ((error as any).code === 'P2025') { // Record to update not found
@@ -111,42 +129,46 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  // --- simulasi mendapatkan userId dari sesi autentikasi ---
-  const sessionUserId = 1; // GANTI INI DENGAN LOGIC AUTENTIKASI SEBENARNYA
-  // ----------------------------------------------------
-  const categoryId = parseInt(params.id, 10);
+  // 1. Dapatkan sesi pengguna
+  const session = await getServerSession(authOptions);
 
+  // 2. Validasi sesi dan ID pengguna
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ message: "Tidak terautentikasi" }, { status: 401 });
+  }
+  const userId = parseInt(session.user.id); // Asumsikan userId di Prisma adalah Integer
+
+  if (isNaN(userId)) {
+    return NextResponse.json({ message: "ID pengguna tidak valid dalam sesi" }, { status: 400 });
+  }
+
+  const categoryId = parseInt(params.id, 10);
   if (isNaN(categoryId)) {
     return NextResponse.json({ message: 'ID kategori tidak valid' }, { status: 400 });
   }
 
   try {
-    // Cek apakah kategori milik user
+    // 3. Cek apakah kategori milik user menggunakan userId dari sesi
     const categoryToDelete = await prisma.category.findFirst({
-        where: { id: categoryId, userId: sessionUserId }
+        where: { id: categoryId, userId: userId }
     });
 
     if (!categoryToDelete) {
         return NextResponse.json({ message: 'Kategori tidak ditemukan atau Anda tidak berhak menghapusnya.' }, { status: 404 });
     }
 
-    // Tambahan: Cek apakah kategori ini digunakan di transaksi atau budget
-    // Jika iya, mungkin Anda tidak ingin langsung menghapus, atau memberikan pesan khusus.
-    // Untuk contoh ini, kita langsung hapus.
     const relatedTransactionsCount = await prisma.transaction.count({ where: { categoryId } });
     const relatedBudgetsCount = await prisma.budget.count({ where: { categoryId }});
 
     if (relatedTransactionsCount > 0 || relatedBudgetsCount > 0) {
         return NextResponse.json({
             message: 'Kategori tidak dapat dihapus karena masih terkait dengan transaksi atau anggaran. Hapus dulu keterkaitannya.',
-        }, { status: 400 }); // Bad Request atau 409 Conflict
+        }, { status: 400 });
     }
-
 
     await prisma.category.delete({
       where: {
-        id: categoryId,
-        // userId: sessionUserId, // Sudah dicek di atas
+        id: categoryId, // Kepemilikan sudah dicek dengan categoryToDelete
       },
     });
     return NextResponse.json({ message: 'Kategori berhasil dihapus' }, { status: 200 });
